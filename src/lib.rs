@@ -47,15 +47,71 @@ pub struct NormalTupleHeaderData {
 #[deriving(Show)]
 pub struct MinimalTupleHeaderData; // unit struct
 
+bitflags! {
+    #[deriving(Show)]
+    flags HeapInfoMask: u16 {
+        const HEAP_HASNULL  =           0x0001, // has null attribute(s)
+        const HEAP_HASVARWIDTH =        0x0002, // has variable-width attribute(s)
+        const HEAP_HASEXTERNAL =        0x0004, // has external stored attribute(s)
+        const HEAP_HASOID =             0x0008, // has an object-id field
+        const HEAP_XMAX_KEYSHR_LOCK =   0x0010, // xmax is a key-shared locker
+        const HEAP_COMBOCID =           0x0020, // t_cid is a combo cid
+        const HEAP_XMAX_EXCL_LOCK =     0x0040, // xmax is exclusive locker
+        const HEAP_XMAX_LOCK_ONLY =     0x0080, // xmax, if valid, is only a locker
+
+        // xmax is a shared locker
+        const HEAP_XMAX_SHR_LOCK = HEAP_XMAX_EXCL_LOCK.bits | HEAP_XMAX_KEYSHR_LOCK.bits,
+        const HEAP_LOCK_MASK = HEAP_XMAX_SHR_LOCK.bits | HEAP_XMAX_EXCL_LOCK.bits |
+                               HEAP_XMAX_KEYSHR_LOCK.bits,
+
+        const HEAP_XMIN_COMMITTED =   0x0100,  /* t_xmin committed */
+        const HEAP_XMIN_INVALID =     0x0200,  /* t_xmin invalid/aborted */
+        const HEAP_XMIN_FROZEN=      HEAP_XMIN_COMMITTED.bits|HEAP_XMIN_INVALID.bits,
+        const HEAP_XMAX_COMMITTED =   0x0400,  /* t_xmax committed */
+        const HEAP_XMAX_INVALID =     0x0800,  /* t_xmax invalid/aborted */
+        const HEAP_XMAX_IS_MULTI =    0x1000,  /* t_xmax is a MultiXactId */
+        const HEAP_UPDATED =          0x2000,  /* this is UPDATEd version of row */
+        const HEAP_MOVED_OFF =        0x4000,  /* moved to another place by pre-9.0
+                                               * VACUUM FULL; kept for binary
+                                               * upgrade support */
+        const HEAP_MOVED_IN =         0x8000,  /* moved from another place by pre-9.0
+                                               * VACUUM FULL; kept for binary
+                                               * upgrade support */
+        const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,
+        const HEAP_XACT_MASK = 0xFFF0,  /* visibility-related bits */
+    }
+}
+
+bitflags! {
+    #[deriving(Show)]
+    flags HeapInfoMask2: u16 {
+        const HEAP_NATTS_MASK =     0x07FF, // 11 bits for number of attributes
+        // bits 0x1800 are available
+        const HEAP_KEYS_UPDATED =   0x2000, // tuple was updated and key cols modified, or tuple
+                                            // deleted
+        const HEAP_HOT_UPDATED =    0x4000, // tuple was HOT-updated
+        const HEAP_ONLY_TUPLE =     0x8000, // this is heap-only tuple
+        const HEAP2_XACT_MASK =     0xE000, // visibility-related bits
+
+        /*
+        * HEAP_TUPLE_HAS_MATCH is a temporary flag used during hash joins.  It is
+        * only used in tuples that are in the hash table, and those don't need
+        * any visibility information, so we can overlay it on a visibility flag
+        * instead of using up a dedicated bit.
+        */
+        const HEAP_TUPLE_HAS_MATCH = HEAP_ONLY_TUPLE.bits,
+    }
+}
+
 #[repr(C)]
 pub struct HeapTupleHeaderData<T, Sized? D> {
     data_: T,
     // ^ - 18 bytes (normally) - ^
-    t_infomask2: u16, // number of attributes + various flags
-    t_infomask: u16, // various flag bits, see below
-    t_hoff: u8, // sizeof header incl. bitmap, padding
+    t_infomask2: HeapInfoMask2, // number of attributes + various flags
+    t_infomask: HeapInfoMask, // various flag bits, see below
+    //t_hoff: u8, // sizeof header incl. bitmap, padding
     // ^ - 5 bytes, 23 bytes total (normally) - ^
-    bits_: [u8, .. 0], // bitmap of NULLs -- VARIABLE LENGTH
+    //bits_: [u8, .. 0], // bitmap of NULLs -- VARIABLE LENGTH
     rest_: D, // More bits (if necessary) plus user data (suitably aligned)
 }
 
@@ -159,6 +215,8 @@ mod tests {
         HeapTupleDisk,
         HeapTupleHeaderData,
         HeapTupleTemp,
+        HeapInfoMask,
+        HeapInfoMask2,
         MinimalTupleHeaderData,
         NormalTupleHeaderData,
     };
@@ -173,13 +231,13 @@ mod tests {
         let tuple: &HeapTupleHeaderData<MinimalTupleHeaderData, [Datum]> = &HeapTupleHeaderData {
             data_: MinimalTupleHeaderData,
             // ^ - 18 bytes (normally) - ^
-            t_infomask2: 0,
-            t_infomask: 0,
-            t_hoff: 0,
-            bits_: [],
+            t_infomask2: HeapInfoMask2::empty(),
+            t_infomask: super::HEAP_LOCK_MASK,
+            //t_hoff: 0,
+            //bits_: [],
             rest_: [1],
         };
-        println!("{}", &tuple.rest_);
+        println!("{}: {}", &tuple.rest_, tuple.t_infomask);
         //assert_eq!(mem::align_of_val(&tuple.rest_), super::MAXIMUM_ALIGNOF);
     }
 
