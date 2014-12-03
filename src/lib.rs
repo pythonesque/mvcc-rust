@@ -50,10 +50,10 @@ pub struct MinimalTupleHeaderData; // unit struct
 bitflags! {
     #[deriving(Show)]
     flags HeapInfoMask: u16 {
-        const HEAP_HASNULL  =           0x0001, // has null attribute(s)
-        const HEAP_HASVARWIDTH =        0x0002, // has variable-width attribute(s)
-        const HEAP_HASEXTERNAL =        0x0004, // has external stored attribute(s)
-        const HEAP_HASOID =             0x0008, // has an object-id field
+        //const HEAP_HASNULL  =           0x0001, // has null attribute(s)
+        //const HEAP_HASVARWIDTH =        0x0002, // has variable-width attribute(s)
+        //const HEAP_HASEXTERNAL =        0x0004, // has external stored attribute(s)
+        //const HEAP_HASOID =             0x0008, // has an object-id field
         const HEAP_XMAX_KEYSHR_LOCK =   0x0010, // xmax is a key-shared locker
         const HEAP_COMBOCID =           0x0020, // t_cid is a combo cid
         const HEAP_XMAX_EXCL_LOCK =     0x0040, // xmax is exclusive locker
@@ -71,13 +71,13 @@ bitflags! {
         const HEAP_XMAX_INVALID =     0x0800,  /* t_xmax invalid/aborted */
         const HEAP_XMAX_IS_MULTI =    0x1000,  /* t_xmax is a MultiXactId */
         const HEAP_UPDATED =          0x2000,  /* this is UPDATEd version of row */
-        const HEAP_MOVED_OFF =        0x4000,  /* moved to another place by pre-9.0
+        /*const HEAP_MOVED_OFF =        0x4000,  /* moved to another place by pre-9.0
                                                * VACUUM FULL; kept for binary
                                                * upgrade support */
         const HEAP_MOVED_IN =         0x8000,  /* moved from another place by pre-9.0
                                                * VACUUM FULL; kept for binary
                                                * upgrade support */
-        const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,
+        const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,*/
         const HEAP_XACT_MASK = 0xFFF0,  /* visibility-related bits */
     }
 }
@@ -87,10 +87,10 @@ bitflags! {
     flags HeapInfoMask2: u16 {
         const HEAP_NATTS_MASK =     0x07FF, // 11 bits for number of attributes
         // bits 0x1800 are available
-        const HEAP_KEYS_UPDATED =   0x2000, // tuple was updated and key cols modified, or tuple
-                                            // deleted
-        const HEAP_HOT_UPDATED =    0x4000, // tuple was HOT-updated
-        const HEAP_ONLY_TUPLE =     0x8000, // this is heap-only tuple
+        //const HEAP_KEYS_UPDATED =   0x2000, // tuple was updated and key cols modified, or tuple
+        //                                    // deleted
+        //const HEAP_HOT_UPDATED =    0x4000, // tuple was HOT-updated
+        //const HEAP_ONLY_TUPLE =     0x8000, // this is heap-only tuple
         const HEAP2_XACT_MASK =     0xE000, // visibility-related bits
 
         /*
@@ -99,7 +99,7 @@ bitflags! {
         * any visibility information, so we can overlay it on a visibility flag
         * instead of using up a dedicated bit.
         */
-        const HEAP_TUPLE_HAS_MATCH = HEAP_ONLY_TUPLE.bits,
+        //const HEAP_TUPLE_HAS_MATCH = HEAP_ONLY_TUPLE.bits,
     }
 }
 
@@ -215,7 +215,6 @@ mod tests {
         HeapTupleDisk,
         HeapTupleHeaderData,
         HeapTupleTemp,
-        HeapInfoMask,
         HeapInfoMask2,
         MinimalTupleHeaderData,
         NormalTupleHeaderData,
