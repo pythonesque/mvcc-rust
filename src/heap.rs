@@ -3,11 +3,21 @@ use {
     Datum,
     ItemPointerData,
     Oid,
+};
+use trans::{
+    SpecialTransactionId,
     TransactionId,
+    TransactionIdResult,
+    ValidTransactionId,
 };
 
+pub enum Combo {
+    Combo,
+    Max
+}
+
 #[deriving(Show)]
-#[repr(packed)]
+#[repr(C,packed)]
 pub struct HeapTupleFields {
     t_xmin: TransactionId, // inserting xact ID
     t_xmax: TransactionId, // deleting or locking xact ID
@@ -15,6 +25,7 @@ pub struct HeapTupleFields {
 }
 
 #[deriving(Show)]
+#[repr(C)]
 pub struct NormalTupleHeaderData {
     t_heap: HeapTupleFields,
     t_ctid: ItemPointerData, // current t_ctid of this or newer tuple
@@ -55,13 +66,41 @@ bitflags! {
                                                * upgrade support */
         const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,*/
         const HEAP_XACT_MASK = 0xFFF0,  /* visibility-related bits */
+
+        // turn these all off when Xmax is to change
+        const HEAP_XMAX_BITS = HEAP_XMAX_COMMITTED.bits | HEAP_XMAX_INVALID.bits |
+                               HEAP_XMAX_IS_MULTI.bits | HEAP_LOCK_MASK.bits |
+                               HEAP_XMAX_LOCK_ONLY.bits
+    }
+}
+
+impl HeapInfoMask {
+    #[inline]
+    pub fn xmax_is_locked_only(&self) -> bool {
+        !(*self & HEAP_XMAX_LOCK_ONLY).is_empty() ||
+        *self & (HEAP_XMAX_IS_MULTI | HEAP_LOCK_MASK) == HEAP_XMAX_EXCL_LOCK
+    }
+
+    #[inline]
+    pub fn xmax_is_shr_locked(&self) -> bool {
+        (*self & HEAP_LOCK_MASK) == HEAP_XMAX_SHR_LOCK
+    }
+
+    #[inline]
+    pub fn xmax_is_excl_locked(&self) -> bool {
+        (*self & HEAP_LOCK_MASK) == HEAP_XMAX_EXCL_LOCK
+    }
+
+    #[inline]
+    pub fn xmax_is_keyshr_locked(&self) -> bool {
+        (*self & HEAP_LOCK_MASK) == HEAP_XMAX_KEYSHR_LOCK
     }
 }
 
 bitflags! {
     #[deriving(Show)]
     flags HeapInfoMask2: u16 {
-        const HEAP_NATTS_MASK =     0x07FF, // 11 bits for number of attributes
+        //const HEAP_NATTS_MASK =     0x07FF, // 11 bits for number of attributes
         // bits 0x1800 are available
         //const HEAP_KEYS_UPDATED =   0x2000, // tuple was updated and key cols modified, or tuple
         //                                    // deleted
@@ -89,6 +128,125 @@ pub struct HeapTupleHeaderData<T, Sized? D> {
     // ^ - 5 bytes, 23 bytes total (normally) - ^
     //bits_: [u8, .. 0], // bitmap of NULLs -- VARIABLE LENGTH
     rest_: D, // More bits (if necessary) plus user data (suitably aligned)
+}
+
+fn get_update_xid(_xmax: TransactionId, t_infomask: HeapInfoMask) -> TransactionIdResult {
+    // TODO: make this type safe so we can avoid assertions.
+    debug_assert!((t_infomask & HEAP_XMAX_LOCK_ONLY).is_empty());
+    debug_assert!(!(t_infomask & HEAP_XMAX_IS_MULTI).is_empty());
+    // Placeholder
+    Err(None)
+}
+
+impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
+    #[inline]
+    pub fn get_raw_xmin(&self) -> TransactionId {
+        self.t_heap.t_xmin
+    }
+
+    #[inline]
+    pub fn get_xmin(&self) -> TransactionIdResult {
+        if self.xmin_frozen() {
+            Err(Some(SpecialTransactionId::Frozen))
+        } else {
+            self.get_raw_xmin().to_normal()
+        }
+    }
+
+    #[inline]
+    pub fn set_xmin(&mut self, xid: ValidTransactionId) {
+        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
+        self.data_.t_heap.t_xmin.store(xid);
+    }
+
+    #[inline]
+    pub fn xmin_committed(&self) -> bool {
+        (self.t_infomask & HEAP_XMIN_COMMITTED).is_empty()
+    }
+
+    #[inline]
+    pub fn xmin_invalid(&self) -> bool {
+        self.t_infomask & (HEAP_XMIN_COMMITTED|HEAP_XMIN_INVALID) == HEAP_XMIN_INVALID
+    }
+
+    #[inline]
+    pub fn xmin_frozen(&self) -> bool {
+        self.t_infomask & HEAP_XMIN_FROZEN == HEAP_XMIN_FROZEN
+    }
+
+    #[inline]
+    pub fn set_xmin_committed(&mut self) {
+        // TODO: make this type safe so we can avoid assertions.
+        debug_assert!(!self.xmin_invalid());
+        self.t_infomask = self.t_infomask | HEAP_XMIN_COMMITTED;
+    }
+
+    #[inline]
+    pub fn set_xmin_invalid(&mut self) {
+        // TODO: make this type safe so we can avoid assertions.
+        debug_assert!(!self.xmin_committed());
+        self.t_infomask = self.t_infomask | HEAP_XMIN_INVALID;
+    }
+
+    #[inline]
+    pub fn set_xmin_frozen(&mut self) {
+        // TODO: make this type safe so we can avoid assertions.
+        debug_assert!(!self.xmin_invalid());
+        self.t_infomask = self.t_infomask | HEAP_XMIN_FROZEN;
+    }
+
+    // This is probably unsafe without checking hint bits...
+    // FIXME: make this type safe
+    pub fn get_raw_update_xid(&self) -> TransactionIdResult {
+        get_update_xid(self.get_raw_xmax(), self.t_infomask)
+    }
+
+    #[inline]
+    pub fn get_update_xid(&self) -> TransactionIdResult {
+        if (self.t_infomask & HEAP_XMAX_INVALID).is_empty() &&
+           !(self.t_infomask & HEAP_XMAX_IS_MULTI).is_empty() &&
+           (self.t_infomask & HEAP_XMAX_LOCK_ONLY).is_empty() {
+            self.get_raw_update_xid()
+        } else {
+            self.get_raw_xmax().to_normal()
+        }
+    }
+
+    #[inline]
+    pub fn get_raw_xmax(&self) -> TransactionId {
+        self.t_heap.t_xmax
+    }
+
+    #[inline]
+    pub fn set_xmax(&mut self, xid: ValidTransactionId) {
+        self.data_.t_heap.t_xmax.store(xid);
+    }
+
+    #[inline]
+    pub fn get_raw_command_id(&self) -> CommandId {
+        self.t_heap.t_cid
+    }
+
+    #[inline]
+    pub fn set_cmin(&mut self, cid: CommandId) {
+        // // This will probably be harder to make typesafe. TODO: consider it.
+        //debug_assert!((self.t_infomask & HEAP_MOVED).is_empty());
+        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
+        self.data_.t_heap.t_cid = cid;
+        self.t_infomask = self.t_infomask & !HEAP_COMBOCID;
+    }
+
+    #[inline]
+    pub fn set_cmax(&mut self, cid: CommandId, iscombo: Combo) {
+        // // This will probably be harder to make typesafe. TODO: consider it.
+        // debug_assert!((self.t_infomask & HEAP_MOVED).is_empty());
+        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
+        self.data_.t_heap.t_cid = cid;
+        match iscombo {
+            Combo::Combo => self.t_infomask = self.t_infomask | HEAP_COMBOCID,
+            Combo::Max => self.t_infomask = self.t_infomask & !HEAP_COMBOCID,
+        }
+    }
 }
 
 impl<T, Sized? D> Deref<T> for HeapTupleHeaderData<T, D> {
@@ -127,9 +285,11 @@ impl<T, U> DerefMut<T> for HeapTupleHeader<T, U> {
     }
 }
 
-pub type HeapTupleIndirectData<'a, T, U = NormalTupleHeaderData, D = [Datum]> = HeapTupleHeader<T, &'a HeapTupleHeaderData<U, D>>;
+pub type HeapTupleIndirectData<'a, T, U = NormalTupleHeaderData, D = [Datum]> =
+    HeapTupleHeader<T, &'a HeapTupleHeaderData<U, D>>;
 
-pub type HeapTupleContiguousData<T, U = NormalTupleHeaderData, D = [Datum]> = HeapTupleHeader<T, HeapTupleHeaderData<U, D>>;
+pub type HeapTupleContiguousData<T, U = NormalTupleHeaderData, D = [Datum]> =
+    HeapTupleHeader<T, HeapTupleHeaderData<U, D>>;
 
 pub const MAXIMUM_ALIGNOF: uint = 8;
 
