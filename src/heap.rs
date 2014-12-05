@@ -130,7 +130,7 @@ pub struct HeapTupleHeaderData<T, Sized? D> {
     rest_: D, // More bits (if necessary) plus user data (suitably aligned)
 }
 
-fn get_update_xid(_xmax: TransactionId, t_infomask: HeapInfoMask) -> TransactionIdResult {
+fn multi_xact_id_get_update_xid(_xmax: TransactionId, t_infomask: HeapInfoMask) -> TransactionIdResult {
     // TODO: make this type safe so we can avoid assertions.
     debug_assert!((t_infomask & HEAP_XMAX_LOCK_ONLY).is_empty());
     debug_assert!(!(t_infomask & HEAP_XMAX_IS_MULTI).is_empty());
@@ -198,7 +198,7 @@ impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
     // This is probably unsafe without checking hint bits...
     // FIXME: make this type safe
     pub fn get_raw_update_xid(&self) -> TransactionIdResult {
-        get_update_xid(self.get_raw_xmax(), self.t_infomask)
+        multi_xact_id_get_update_xid(self.get_raw_xmax(), self.t_infomask)
     }
 
     #[inline]
@@ -292,23 +292,6 @@ pub type HeapTupleContiguousData<T, U = NormalTupleHeaderData, D = [Datum]> =
     HeapTupleHeader<T, HeapTupleHeaderData<U, D>>;
 
 pub const MAXIMUM_ALIGNOF: uint = 8;
-
-macro_rules! with_offset(($ty:ty,$field:ident,$data:ident,$b:expr) => {
-    unsafe {
-        let $data = 0 as *const $ty;
-        let $field = &(*$data).$field;
-        let result = $b;
-        result
-    }
-})
-
-macro_rules! offset_of(($ty:ty,$field:ident) => {
-    with_offset!($ty, $field, data, ($field as *const _ as uint) - (data as uint))
-})
-
-macro_rules! min_align_of_offset(($ty:ty,$field:ident) => {
-    with_offset!($ty, $field, data, ::std::mem::min_align_of_val($field))
-})
 
 // (offsetof(HeapTupleHeaderData, t_infomask2) - sizeof(uint32)) % MAXIMUM_ALIGNOF
 pub const MINIMAL_TUPLE_PADDING: uint = 6;

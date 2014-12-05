@@ -1,9 +1,29 @@
+#![feature(asm)]
 #![feature(default_type_params)]
 #![feature(globs)]
 #![feature(macro_rules)]
 #![feature(tuple_indexing)]
 
+macro_rules! with_offset(($ty:ty,$field:ident,$data:ident,$b:expr) => {
+unsafe {
+    let $data = 0 as *const $ty;
+    let $field = &(*$data).$field;
+    let result = $b;
+    result
+}
+})
+
+macro_rules! offset_of(($ty:ty,$field:ident) => {
+with_offset!($ty, $field, data, ($field as *const _ as uint) - (data as uint))
+})
+
+macro_rules! min_align_of_offset(($ty:ty,$field:ident) => {
+with_offset!($ty, $field, data, ::std::mem::min_align_of_val($field))
+})
+
+pub mod multixact;
 pub mod heap;
+mod s_lock;
 pub mod trans;
 
 #[deriving(Show)]
