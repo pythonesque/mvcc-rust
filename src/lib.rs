@@ -2,7 +2,6 @@
 #![feature(default_type_params)]
 #![feature(globs)]
 #![feature(macro_rules)]
-#![feature(tuple_indexing)]
 
 macro_rules! with_offset(($ty:ty,$field:ident,$data:ident,$b:expr) => {
 unsafe {
@@ -20,6 +19,10 @@ with_offset!($ty, $field, data, ($field as *const _ as uint) - (data as uint))
 macro_rules! min_align_of_offset(($ty:ty,$field:ident) => {
 with_offset!($ty, $field, data, ::std::mem::min_align_of_val($field))
 })
+
+/*thread_local! {
+    pub static TIMER: Timer = Timer::new().unwrap()
+}*/
 
 pub mod multixact;
 pub mod heap;
