@@ -174,13 +174,14 @@ impl SLock {
 
 #[cfg(test)]
 mod tests {
+    use super::SLock;
+    use std::sync::Arc;
+
     #[cfg(feature = "long-tests")]
     #[test]
     pub fn test_lock() {
-        use std::sync::Arc;
-        use super::SLock;
 
-        let s_lock = Arc::new(SLock::init_());
+        let s_lock = SLock::init_();
 
         assert!(s_lock.free_());
 
@@ -202,5 +203,55 @@ mod tests {
             static FILE_LINE_3: &'static (&'static str, uint) = &(file!(), line!());
             s_lock.lock_(FILE_LINE_3);
         }).is_err());
+    }
+
+    #[bench]
+    pub fn bench_lock(b: &mut ::test::Bencher) {
+        b.iter( || {
+            let s_lock = SLock::init_();
+            static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!());
+            s_lock.lock_(FILE_LINE);
+        })
+    }
+
+    #[bench]
+    pub fn bench_unlock(b: &mut ::test::Bencher) {
+        b.iter( || {
+            let s_lock = SLock::init_();
+            s_lock.unlock_();
+        })
+    }
+
+    #[bench]
+    pub fn bench_lock_unlock(b: &mut ::test::Bencher) {
+        let s_lock = SLock::init_();
+        b.iter( || {
+            static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!());
+            s_lock.lock_(FILE_LINE);
+            s_lock.unlock_();
+        })
+    }
+
+    #[bench]
+    pub fn bench_lock_unlock_contended(b: &mut ::test::Bencher) {
+        use std::sync::atomic;
+
+        let s_lock = Arc::new(SLock::init_());
+        let done = Arc::new(atomic::AtomicBool::new(false));
+        let done_ = done.clone();
+        let s_lock_ = s_lock.clone();
+        spawn(proc() {
+            while !done_.load(atomic::Ordering::Relaxed) {
+                static FILE_LINE_2: &'static (&'static str, uint) = &(file!(), line!());
+                s_lock_.lock_(FILE_LINE_2);
+                s_lock_.unlock_();
+            }
+        });
+        b.iter( || {
+            static FILE_LINE_1: &'static (&'static str, uint) = &(file!(), line!());
+            s_lock.lock_(FILE_LINE_1);
+            s_lock.unlock_();
+        });
+        done.store(true, atomic::Ordering::Relaxed);
     }
 }

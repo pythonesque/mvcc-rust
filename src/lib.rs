@@ -3,6 +3,8 @@
 #![feature(globs)]
 #![feature(macro_rules)]
 
+#[cfg(test)] extern crate test;
+
 macro_rules! with_offset(($ty:ty,$field:ident,$data:ident,$b:expr) => {
 unsafe {
     let $data = 0 as *const $ty;
