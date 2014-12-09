@@ -8,11 +8,13 @@ use std::rand::{mod, Closed01, Rng};
 use std::rt;
 use std::time::Duration;
 
-#[cfg(target_arch = "x86_64")] type SLock_ = u8;
+#[cfg(target_arch = "x86_64")] type SLock = u8;
 
 #[repr(C)]
-pub struct SLock {
-    lock: UnsafeCell<SLock_>,
+pub struct SpinLock<T, U> {
+    pub before: UnsafeCell<T>,
+    lock: UnsafeCell<SLock>,
+    pub after: UnsafeCell<U>,
     nocopy: marker::NoCopy
 }
 
@@ -32,7 +34,7 @@ pub fn update_spins_per_delay(shared_spins_per_delay: u32) -> u32 {
     }
 }
 
-impl SLock {
+impl<T, U> SpinLock<T, U> where T: Send, U: Send {
     #[cfg(target_arch = "x86_64")]
     #[inline(always)]
     fn tas(&self) -> bool {
@@ -58,9 +60,8 @@ impl SLock {
     }
 
     // Default definitions -- override these as needed
-
     #[inline(always)]
-    pub fn lock_(&self, file_line: &(&'static str, uint)) -> IoResult<u32> {
+    fn lock_(&self, file_line: &(&'static str, uint)) -> IoResult<u32> {
         if self.tas() {
             self.lock(file_line)
         } else {
@@ -69,23 +70,25 @@ impl SLock {
     }
 
     #[inline(always)]
-    pub fn free_(&self) -> bool {
+    fn free_(&self) -> bool {
         unsafe {
-            ::std::intrinsics::atomic_load_acq(self.lock.get() as *const SLock_) == 0
+            ::std::intrinsics::atomic_load_acq(self.lock.get() as *const SLock) == 0
         }
     }
 
     #[inline(always)]
-    pub fn unlock_(&self) {
+    fn unlock_(&self) {
         unsafe {
             ::std::intrinsics::atomic_store_rel(self.lock.get(), 0)
         }
     }
 
     #[inline(always)]
-    pub fn init_() -> SLock {
-        SLock {
+    fn init_(before: T, after: U) -> SpinLock<T, U> {
+        SpinLock {
+            before: UnsafeCell::new(before),
             lock: UnsafeCell::new(0),
+            after: UnsafeCell::new(after),
             nocopy: marker::NoCopy,
         }
     }
@@ -94,6 +97,7 @@ impl SLock {
     #[inline(always)]
     fn spin_delay() { }
 
+    // Platform independent definitions
     #[cold] #[inline(never)]
     fn lock_stuck(file_line: &(&'static str, uint)) {
         rt::begin_unwind("Stuck spinlock detected", file_line);
@@ -116,14 +120,14 @@ impl SLock {
 
             while self.tas_spin() {
                 // CPU-specific delay each time through the loop
-                SLock::spin_delay();
+                SpinLock::<T,U>::spin_delay();
 
                 // Block the process every spins_per_delay tries
                 spins += 1;
                 if spins >= spins_per_delay {
                     delays += 1;
                     if delays > NUM_DELAYS {
-                        SLock::lock_stuck(file_line);
+                        SpinLock::<(),()>::lock_stuck(file_line);
                     }
 
                     if cur_delay == 0 { // first time to delay?
@@ -175,37 +179,105 @@ impl SLock {
             Ok(delays)
         }
     }
+
+    // Public interface
+    #[inline(always)]
+    pub fn init(before: T, after: U) -> SpinLock<T, U> {
+        SpinLock::init_(before, after)
+    }
+
+    #[inline(always)]
+    pub fn acquire(&self, file_line: &(&'static str, uint)) -> IoResult<u32> {
+        self.lock_(file_line)
+    }
+
+    #[inline(always)]
+    pub unsafe fn release(&self) {
+        self.unlock_()
+    }
+
+    #[inline(always)]
+    pub fn free(&self) -> bool {
+        self.free_()
+    }
+
+    #[inline(always)]
+    pub fn acquire_guard<'a>(&'a self,
+                             file_line: &(&'static str, uint)) -> SpinLockGuard<'a, T, U> {
+        self.lock(file_line).unwrap();
+        SpinLockGuard { lock: self }
+    }
+
 }
+
+#[must_use]
+pub struct SpinLockGuard<'a, T: 'a, U: 'a> {
+    lock: &'a SpinLock<T, U>,
+}
+
+impl<'a, T, U> SpinLockGuard<'a, T, U> {
+    #[inline(always)]
+    pub fn deref<'b>(&'b self) -> (&'a T, &'a U) {
+        unsafe {
+            (&*self.lock.before.get(), &*self.lock.after.get())
+        }
+    }
+
+    #[inline(always)]
+    pub fn deref_mut<'b>(&'b mut self) -> (&'b mut T, &'b mut U) {
+        unsafe {
+            (&mut *self.lock.before.get(), &mut *self.lock.after.get())
+        }
+    }
+}
+
+#[unsafe_destructor]
+impl<'a, T, U> Drop for SpinLockGuard<'a, T, U> where T: Send, U: Send {
+    #[inline(always)]
+    fn drop(&mut self) {
+        unsafe {
+            self.lock.release();
+        }
+    }
+}
+
+macro_rules! spin_lock_acquire(($guard:pat = $lock:expr, $body:block) => ({
+    static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!());
+    let $guard = $lock.acquire_guard(FILE_LINE);
+    $body
+}))
 
 #[cfg(test)]
 mod tests {
-    use super::SLock;
+    use super::SpinLock;
     use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_lock() {
-        let s_lock = SLock::init_();
+        let s_lock = SpinLock::init((), ());
 
-        assert!(s_lock.free_());
+        assert!(s_lock.free());
 
         static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-        assert!(s_lock.lock_(FILE_LINE).is_ok());
-        assert!(!s_lock.free_());
+        assert!(s_lock.acquire(FILE_LINE).is_ok());
+        assert!(!s_lock.free());
 
-        s_lock.unlock_();
-        assert!(s_lock.free_());
+        unsafe {
+            s_lock.release();
+            assert!(s_lock.free());
+        }
     }
 
     #[test]
     #[cfg(feature = "long-tests")]
     fn test_lock_long() {
-        let s_lock = SLock::init_();
+        let s_lock = SpinLock::init_();
 
-        assert!(s_lock.free_());
+        assert!(s_lock.free());
 
         static FILE_LINE_1: &'static (&'static str, uint) = &(file!(), line!() + 1);
-        assert!(s_lock.lock_(FILE_LINE_1).is_ok());
-        assert!(!s_lock.free_());
+        assert!(s_lock.acquire(FILE_LINE_1).is_ok());
+        assert!(!s_lock.free());
 
         assert!(::std::task::try(proc() {
             static FILE_LINE_2: &'static (&'static str, uint) = &(file!(), line!() + 1);
@@ -224,55 +296,58 @@ mod tests {
     #[bench]
     fn bench_lock(b: &mut ::test::Bencher) {
         b.iter( || {
-            let s_lock = SLock::init_();
+            let s_lock = SpinLock::init((), ());
             static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.lock_(FILE_LINE).is_ok());
+            assert!(s_lock.acquire(FILE_LINE).is_ok());
         })
     }
 
     #[bench]
     fn bench_unlock(b: &mut ::test::Bencher) {
-        let s_lock = SLock::init_();
-        b.iter( || {
-            s_lock.unlock_();
+        let s_lock = SpinLock::init((), ());
+        b.iter( || unsafe {
+            s_lock.release();
         })
     }
 
     #[bench]
     fn bench_lock_unlock(b: &mut ::test::Bencher) {
-        let s_lock = SLock::init_();
+        let s_lock = SpinLock::init((), ());
 
         b.bytes = 1; // One byte modified per iteration
 
-        b.iter( || {
+        b.iter( || unsafe {
             static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.lock_(FILE_LINE).is_ok());
-            s_lock.unlock_();
+            assert!(s_lock.acquire(FILE_LINE).is_ok());
+            s_lock.release();
         })
     }
 
     #[bench]
     fn bench_lock_unlock_contended(b: &mut ::test::Bencher) {
-        use std::sync::atomic;
-
         b.bytes = 1; // One byte modified per iteration
 
-        let s_lock = Arc::new(SLock::init_());
-        let done = Arc::new(atomic::AtomicBool::new(false));
-        let done_ = done.clone();
+        let s_lock = Arc::new(SpinLock::init(false, ()));
         let s_lock_ = s_lock.clone();
         spawn(proc() {
-            while !done_.load(atomic::Ordering::Relaxed) {
-                static FILE_LINE_2: &'static (&'static str, uint) = &(file!(), line!() + 1);
-                assert!(s_lock_.lock_(FILE_LINE_2).is_ok());
-                s_lock_.unlock_();
+            loop {
+                spin_lock_acquire!(guard = s_lock_, {
+                    assert!(!s_lock_.free());
+                    if *guard.deref().0 {
+                        break
+                    }
+                })
             }
         });
-        b.iter( || {
-            static FILE_LINE_1: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.lock_(FILE_LINE_1).is_ok());
-            s_lock.unlock_();
+        b.iter( || unsafe {
+            static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
+            assert!(s_lock.acquire(FILE_LINE).is_ok());
+            assert!(!s_lock.free());
+            s_lock.release();
         });
-        done.store(true, atomic::Ordering::Relaxed);
+        spin_lock_acquire!(mut guard = s_lock, {
+            *guard.deref_mut().0 = true;
+            assert!(!s_lock.free());
+        })
     }
 }

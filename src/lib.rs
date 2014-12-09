@@ -3,6 +3,7 @@
 #![feature(globs)]
 #![feature(macro_rules)]
 #![feature(thread_local)]
+#![feature(unsafe_destructor)]
 
 #[cfg(test)] extern crate test;
 
