@@ -127,6 +127,6 @@ mod tests {
     /*#[test]
     fn minimal_tuple_padding() {
         let size = mem::size_of(LWLock);
-        assert_eq!(LWLOCK_PADDED_SIZE, mem::size_of::<LWLock>() + LWLOCK_PADDING);
+        assert_eq!(LWLOCK_PADDED_SIZE, mem::size_of::<LWLock>() + LWLOCK_PADDING)
     }*/
 }

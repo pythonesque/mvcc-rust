@@ -255,7 +255,7 @@ macro_rules! spin_lock_init(
     )
 )
 
-macro_rules! spin_lock_acquire(($guard:pat = $lock:expr, $body:block) => ({
+macro_rules! spin_lock_acquire(($guard:pat = $lock:expr, $body:expr) => ({
     static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!());
     let $guard = $lock.acquire_guard(FILE_LINE);
     $body
@@ -270,15 +270,15 @@ mod tests {
     fn test_lock() {
         let s_lock = SpinLock::init((), ());
 
-        assert!(s_lock.free());
+        assert!(s_lock.free())
 
         static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-        assert!(s_lock.acquire(FILE_LINE).is_ok());
-        assert!(!s_lock.free());
+        assert!(s_lock.acquire(FILE_LINE).is_ok())
+        assert!(!s_lock.free())
 
         unsafe {
             s_lock.release();
-            assert!(s_lock.free());
+            assert!(s_lock.free())
         }
     }
 
@@ -287,15 +287,15 @@ mod tests {
     fn test_lock_long() {
         let s_lock = SpinLock::init_();
 
-        assert!(s_lock.free());
+        assert!(s_lock.free())
 
         static FILE_LINE_1: &'static (&'static str, uint) = &(file!(), line!() + 1);
-        assert!(s_lock.acquire(FILE_LINE_1).is_ok());
-        assert!(!s_lock.free());
+        assert!(s_lock.acquire(FILE_LINE_1).is_ok())
+        assert!(!s_lock.free())
 
         assert!(::std::task::try(proc() {
             static FILE_LINE_2: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.lock_(FILE_LINE_2).is_ok());
+            assert!(s_lock.lock_(FILE_LINE_2).is_ok())
         }).is_err());
     }
 
@@ -312,7 +312,7 @@ mod tests {
         b.iter( || {
             let s_lock = SpinLock::init((), ());
             static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.acquire(FILE_LINE).is_ok());
+            assert!(s_lock.acquire(FILE_LINE).is_ok())
         })
     }
 
@@ -332,7 +332,7 @@ mod tests {
 
         b.iter( || unsafe {
             static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.acquire(FILE_LINE).is_ok());
+            assert!(s_lock.acquire(FILE_LINE).is_ok())
             s_lock.release();
         })
     }
@@ -346,7 +346,7 @@ mod tests {
         spawn(proc() {
             loop {
                 spin_lock_acquire!(guard = s_lock_, {
-                    assert!(!s_lock_.free());
+                    assert!(!s_lock_.free())
                     if *guard.deref().0 {
                         break
                     }
@@ -355,13 +355,13 @@ mod tests {
         });
         b.iter( || unsafe {
             static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!() + 1);
-            assert!(s_lock.acquire(FILE_LINE).is_ok());
-            assert!(!s_lock.free());
+            assert!(s_lock.acquire(FILE_LINE).is_ok())
+            assert!(!s_lock.free())
             s_lock.release();
         });
         spin_lock_acquire!(mut guard = s_lock, {
             *guard.deref_mut().0 = true;
-            assert!(!s_lock.free());
+            assert!(!s_lock.free())
         })
     }
 }

@@ -150,8 +150,8 @@ pub struct HeapTupleHeaderData<T, Sized? D> {
 
 fn multi_xact_id_get_update_xid(_xmax: TransactionId, t_infomask: HeapInfoMask) -> TransactionIdResult {
     // TODO: make this type safe so we can avoid assertions.
-    debug_assert!((t_infomask & HEAP_XMAX_LOCK_ONLY).is_empty());
-    debug_assert!(!(t_infomask & HEAP_XMAX_IS_MULTI).is_empty());
+    debug_assert!((t_infomask & HEAP_XMAX_LOCK_ONLY).is_empty())
+    debug_assert!(!(t_infomask & HEAP_XMAX_IS_MULTI).is_empty())
     // Placeholder
     Err(None)
 }
@@ -194,21 +194,21 @@ impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
     #[inline]
     pub fn set_xmin_committed(&mut self) {
         // TODO: make this type safe so we can avoid assertions.
-        debug_assert!(!self.xmin_invalid());
+        debug_assert!(!self.xmin_invalid())
         self.t_infomask = self.t_infomask | HEAP_XMIN_COMMITTED;
     }
 
     #[inline]
     pub fn set_xmin_invalid(&mut self) {
         // TODO: make this type safe so we can avoid assertions.
-        debug_assert!(!self.xmin_committed());
+        debug_assert!(!self.xmin_committed())
         self.t_infomask = self.t_infomask | HEAP_XMIN_INVALID;
     }
 
     #[inline]
     pub fn set_xmin_frozen(&mut self) {
         // TODO: make this type safe so we can avoid assertions.
-        debug_assert!(!self.xmin_invalid());
+        debug_assert!(!self.xmin_invalid())
         self.t_infomask = self.t_infomask | HEAP_XMIN_FROZEN;
     }
 
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn maximum_alignof() {
-        assert_eq!(mem::align_of::<uint>(), super::MAXIMUM_ALIGNOF);
+        assert_eq!(mem::align_of::<uint>(), super::MAXIMUM_ALIGNOF)
     }
 
     #[test]
@@ -387,11 +387,11 @@ mod tests {
         let offset = offset_of!(HeapTupleHeaderData<M, D>, rest_);
         let align = min_align_of_offset!(HeapTupleHeaderData<M, D>, rest_);
         println!("{} {} {}", offset, mem::size_of::<HeapTupleHeaderData<M, D>>(), align);
-        assert_eq!(align, super::MAXIMUM_ALIGNOF);
+        assert_eq!(align, super::MAXIMUM_ALIGNOF)
         let offset = offset_of!(HeapTupleHeaderData<N, D>, rest_);
         let align = min_align_of_offset!(HeapTupleHeaderData<N, D>, rest_);
         println!("{} {} {}", offset, mem::size_of::<HeapTupleHeaderData<N, D>>(), align);
-        assert_eq!(align, super::MAXIMUM_ALIGNOF);
+        assert_eq!(align, super::MAXIMUM_ALIGNOF)
 
         let offset = offset_of!(C<T, M, D>, t_data);
         println!("{} {}", offset, mem::size_of::<C<T, M, D>>());
@@ -409,6 +409,6 @@ mod tests {
         let offset = offset_of!(HeapTupleHeaderData<N, D>, t_infomask2);
         //println!("{} {}", offset, mem::size_of::<HeapTupleHeaderData<N, D>>());
         let minimal_tuple_padding = (offset - u32::BYTES) % super::MAXIMUM_ALIGNOF;
-        assert_eq!(minimal_tuple_padding, super::MINIMAL_TUPLE_PADDING);
+        assert_eq!(minimal_tuple_padding, super::MINIMAL_TUPLE_PADDING)
     }
 }
