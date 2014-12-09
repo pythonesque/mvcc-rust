@@ -45,31 +45,31 @@ bitflags! {
         //const HEAP_HASVARWIDTH =        0x0002, // has variable-width attribute(s)
         //const HEAP_HASEXTERNAL =        0x0004, // has external stored attribute(s)
         //const HEAP_HASOID =             0x0008, // has an object-id field
-        /// xmax is a key-shared locker
+        #[doc="xmax is a key-shared locker"]
         const HEAP_XMAX_KEYSHR_LOCK =   0x0010,
-        /// t_cid is a combo cid
+        #[doc="t_cid is a combo cid"]
         const HEAP_COMBOCID =           0x0020,
-        /// xmax is exclusive locker
+        #[doc="xmax is exclusive locker"]
         const HEAP_XMAX_EXCL_LOCK =     0x0040,
-        /// xmax, if valid, is only a locker
+        #[doc="xmax, if valid, is only a locker"]
         const HEAP_XMAX_LOCK_ONLY =     0x0080,
 
-        /// xmax is a shared locker
+        #[doc="xmax is a shared locker"]
         const HEAP_XMAX_SHR_LOCK = HEAP_XMAX_EXCL_LOCK.bits | HEAP_XMAX_KEYSHR_LOCK.bits,
         const HEAP_LOCK_MASK = HEAP_XMAX_SHR_LOCK.bits | HEAP_XMAX_EXCL_LOCK.bits |
                                HEAP_XMAX_KEYSHR_LOCK.bits,
-        /// t_xmin committed
+        #[doc="t_xmin committed"]
         const HEAP_XMIN_COMMITTED =   0x0100,
-        /// t_xmin invalid/aborted
+        #[doc="t_xmin invalid/aborted"]
         const HEAP_XMIN_INVALID =     0x0200,
         const HEAP_XMIN_FROZEN=      HEAP_XMIN_COMMITTED.bits|HEAP_XMIN_INVALID.bits,
-        /// t_xmax committed
+        #[doc="t_xmax committed"]
         const HEAP_XMAX_COMMITTED =   0x0400,
-        /// t_xmax invalid/aborted
+        #[doc="t_xmax invalid/aborted"]
         const HEAP_XMAX_INVALID =     0x0800,
-        /// t_xmax is a MultiXactId
+        #[doc="t_xmax is a MultiXactId"]
         const HEAP_XMAX_IS_MULTI =    0x1000,
-        /// this is UPDATEd version of row
+        #[doc="this is UPDATEd version of row"]
         const HEAP_UPDATED =          0x2000,
         /*const HEAP_MOVED_OFF =        0x4000,  /* moved to another place by pre-9.0
                                                * VACUUM FULL; kept for binary
@@ -78,10 +78,10 @@ bitflags! {
                                                * VACUUM FULL; kept for binary
                                                * upgrade support */
         const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,*/
-        /// visibility-related bits
+        #[doc="visibility-related bits"]
         const HEAP_XACT_MASK = 0xFFF0,
 
-        /// turn these all off when Xmax is to change
+        #[doc="turn these all off when Xmax is to change"]
         const HEAP_XMAX_BITS = HEAP_XMAX_COMMITTED.bits | HEAP_XMAX_INVALID.bits |
                                HEAP_XMAX_IS_MULTI.bits | HEAP_LOCK_MASK.bits |
                                HEAP_XMAX_LOCK_ONLY.bits
@@ -120,7 +120,7 @@ bitflags! {
         //                                    // deleted
         //const HEAP_HOT_UPDATED =    0x4000, // tuple was HOT-updated
         //const HEAP_ONLY_TUPLE =     0x8000, // this is heap-only tuple
-        /// visibility-related bits
+        #[doc="visibility-related bits"]
         const HEAP2_XACT_MASK =     0xE000,
 
         /*
