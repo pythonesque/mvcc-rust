@@ -2,6 +2,7 @@
 #![feature(default_type_params)]
 #![feature(globs)]
 #![feature(macro_rules)]
+#![feature(thread_local)]
 
 #[cfg(test)] extern crate test;
 
