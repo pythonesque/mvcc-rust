@@ -31,6 +31,7 @@ with_offset!($ty, $field, data, ::std::mem::min_align_of_val($field))
 pub mod multixact;
 pub mod heap;
 mod s_lock;
+pub mod lwlock;
 pub mod trans;
 
 #[deriving(Show)]

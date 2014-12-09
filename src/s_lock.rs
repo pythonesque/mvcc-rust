@@ -1,4 +1,5 @@
 // Hardware-dependent spin locks.
+#![macro_escape]
 
 use std::cmp;
 use std::cell::UnsafeCell;
@@ -8,14 +9,16 @@ use std::rand::{mod, Closed01, Rng};
 use std::rt;
 use std::time::Duration;
 
-#[cfg(target_arch = "x86_64")] type SLock = u8;
+#[cfg(target_arch = "x86_64")]
+#[doc(hidden)]
+pub type SLock = u8;
 
 #[repr(C)]
 pub struct SpinLock<T, U> {
     pub before: UnsafeCell<T>,
-    lock: UnsafeCell<SLock>,
+    #[doc(hidden)] pub lock: UnsafeCell<SLock>,
     pub after: UnsafeCell<U>,
-    nocopy: marker::NoCopy
+    #[doc(hidden)] pub nocopy: marker::NoCopy
 }
 
 const DEFAULT_SPINS_PER_DELAY: u32 = 100;
@@ -240,6 +243,17 @@ impl<'a, T, U> Drop for SpinLockGuard<'a, T, U> where T: Send, U: Send {
         }
     }
 }
+
+macro_rules! spin_lock_init(
+    ($before:expr, $after:expr) => (
+        ::s_lock::SpinLock {
+            before: ::std::cell::UnsafeCell { value: $before },
+            lock: ::std::cell::UnsafeCell { value: 0 },
+            after: ::std::cell::UnsafeCell { value: $after },
+            nocopy: ::std::kinds::marker::NoCopy,
+        }
+    )
+)
 
 macro_rules! spin_lock_acquire(($guard:pat = $lock:expr, $body:block) => ({
     static FILE_LINE: &'static (&'static str, uint) = &(file!(), line!());

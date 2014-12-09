@@ -19,16 +19,20 @@ pub enum Combo {
 #[deriving(Show)]
 #[repr(C,packed)]
 pub struct HeapTupleFields {
-    t_xmin: TransactionId, // inserting xact ID
-    t_xmax: TransactionId, // deleting or locking xact ID
-    t_cid: CommandId, // inserting or deleting command ID, or both
+    /// inserting xact ID
+    t_xmin: TransactionId,
+    /// deleting or locking xact ID
+    t_xmax: TransactionId,
+    /// inserting or deleting command ID, or both
+    t_cid: CommandId,
 }
 
 #[deriving(Show)]
 #[repr(C)]
 pub struct NormalTupleHeaderData {
     t_heap: HeapTupleFields,
-    t_ctid: ItemPointerData, // current t_ctid of this or newer tuple
+    /// current t_ctid of this or newer tuple
+    t_ctid: ItemPointerData,
 }
 
 #[deriving(Show)]
@@ -41,23 +45,32 @@ bitflags! {
         //const HEAP_HASVARWIDTH =        0x0002, // has variable-width attribute(s)
         //const HEAP_HASEXTERNAL =        0x0004, // has external stored attribute(s)
         //const HEAP_HASOID =             0x0008, // has an object-id field
-        const HEAP_XMAX_KEYSHR_LOCK =   0x0010, // xmax is a key-shared locker
-        const HEAP_COMBOCID =           0x0020, // t_cid is a combo cid
-        const HEAP_XMAX_EXCL_LOCK =     0x0040, // xmax is exclusive locker
-        const HEAP_XMAX_LOCK_ONLY =     0x0080, // xmax, if valid, is only a locker
+        /// xmax is a key-shared locker
+        const HEAP_XMAX_KEYSHR_LOCK =   0x0010,
+        /// t_cid is a combo cid
+        const HEAP_COMBOCID =           0x0020,
+        /// xmax is exclusive locker
+        const HEAP_XMAX_EXCL_LOCK =     0x0040,
+        /// xmax, if valid, is only a locker
+        const HEAP_XMAX_LOCK_ONLY =     0x0080,
 
-        // xmax is a shared locker
+        /// xmax is a shared locker
         const HEAP_XMAX_SHR_LOCK = HEAP_XMAX_EXCL_LOCK.bits | HEAP_XMAX_KEYSHR_LOCK.bits,
         const HEAP_LOCK_MASK = HEAP_XMAX_SHR_LOCK.bits | HEAP_XMAX_EXCL_LOCK.bits |
                                HEAP_XMAX_KEYSHR_LOCK.bits,
-
-        const HEAP_XMIN_COMMITTED =   0x0100,  /* t_xmin committed */
-        const HEAP_XMIN_INVALID =     0x0200,  /* t_xmin invalid/aborted */
+        /// t_xmin committed
+        const HEAP_XMIN_COMMITTED =   0x0100,
+        /// t_xmin invalid/aborted
+        const HEAP_XMIN_INVALID =     0x0200,
         const HEAP_XMIN_FROZEN=      HEAP_XMIN_COMMITTED.bits|HEAP_XMIN_INVALID.bits,
-        const HEAP_XMAX_COMMITTED =   0x0400,  /* t_xmax committed */
-        const HEAP_XMAX_INVALID =     0x0800,  /* t_xmax invalid/aborted */
-        const HEAP_XMAX_IS_MULTI =    0x1000,  /* t_xmax is a MultiXactId */
-        const HEAP_UPDATED =          0x2000,  /* this is UPDATEd version of row */
+        /// t_xmax committed
+        const HEAP_XMAX_COMMITTED =   0x0400,
+        /// t_xmax invalid/aborted
+        const HEAP_XMAX_INVALID =     0x0800,
+        /// t_xmax is a MultiXactId
+        const HEAP_XMAX_IS_MULTI =    0x1000,
+        /// this is UPDATEd version of row
+        const HEAP_UPDATED =          0x2000,
         /*const HEAP_MOVED_OFF =        0x4000,  /* moved to another place by pre-9.0
                                                * VACUUM FULL; kept for binary
                                                * upgrade support */
@@ -65,9 +78,10 @@ bitflags! {
                                                * VACUUM FULL; kept for binary
                                                * upgrade support */
         const HEAP_MOVED = HEAP_MOVED_OFF.bits | HEAP_MOVED_IN.bits,*/
-        const HEAP_XACT_MASK = 0xFFF0,  /* visibility-related bits */
+        /// visibility-related bits
+        const HEAP_XACT_MASK = 0xFFF0,
 
-        // turn these all off when Xmax is to change
+        /// turn these all off when Xmax is to change
         const HEAP_XMAX_BITS = HEAP_XMAX_COMMITTED.bits | HEAP_XMAX_INVALID.bits |
                                HEAP_XMAX_IS_MULTI.bits | HEAP_LOCK_MASK.bits |
                                HEAP_XMAX_LOCK_ONLY.bits
@@ -106,7 +120,8 @@ bitflags! {
         //                                    // deleted
         //const HEAP_HOT_UPDATED =    0x4000, // tuple was HOT-updated
         //const HEAP_ONLY_TUPLE =     0x8000, // this is heap-only tuple
-        const HEAP2_XACT_MASK =     0xE000, // visibility-related bits
+        /// visibility-related bits
+        const HEAP2_XACT_MASK =     0xE000,
 
         /*
         * HEAP_TUPLE_HAS_MATCH is a temporary flag used during hash joins.  It is
@@ -122,12 +137,15 @@ bitflags! {
 pub struct HeapTupleHeaderData<T, Sized? D> {
     data_: T,
     // ^ - 18 bytes (normally) - ^
-    t_infomask2: HeapInfoMask2, // number of attributes + various flags
-    t_infomask: HeapInfoMask, // various flag bits, see below
+    /// number of attributes + various flags
+    t_infomask2: HeapInfoMask2,
+    /// various flag bits, see below
+    t_infomask: HeapInfoMask,
     //t_hoff: u8, // sizeof header incl. bitmap, padding
     // ^ - 5 bytes, 23 bytes total (normally) - ^
     //bits_: [u8, .. 0], // bitmap of NULLs -- VARIABLE LENGTH
-    rest_: D, // More bits (if necessary) plus user data (suitably aligned)
+    /// More bits (if necessary) plus user data (suitably aligned)
+    rest_: D,
 }
 
 fn multi_xact_id_get_update_xid(_xmax: TransactionId, t_infomask: HeapInfoMask) -> TransactionIdResult {
@@ -155,8 +173,7 @@ impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
 
     #[inline]
     pub fn set_xmin(&mut self, xid: ValidTransactionId) {
-        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
-        self.data_.t_heap.t_xmin.store(xid);
+        self.t_heap.t_xmin.store(xid);
     }
 
     #[inline]
@@ -231,8 +248,7 @@ impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
     pub fn set_cmin(&mut self, cid: CommandId) {
         // // This will probably be harder to make typesafe. TODO: consider it.
         //debug_assert!((self.t_infomask & HEAP_MOVED).is_empty());
-        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
-        self.data_.t_heap.t_cid = cid;
+        self.t_heap.t_cid = cid;
         self.t_infomask = self.t_infomask & !HEAP_COMBOCID;
     }
 
@@ -240,8 +256,7 @@ impl<Sized? D> HeapTupleHeaderData<NormalTupleHeaderData, D> {
     pub fn set_cmax(&mut self, cid: CommandId, iscombo: Combo) {
         // // This will probably be harder to make typesafe. TODO: consider it.
         // debug_assert!((self.t_infomask & HEAP_MOVED).is_empty());
-        // FIXME: Need data_ explicitly because we don't have DerefMut for Sized? yet.
-        self.data_.t_heap.t_cid = cid;
+        self.t_heap.t_cid = cid;
         match iscombo {
             Combo::Combo => self.t_infomask = self.t_infomask | HEAP_COMBOCID,
             Combo::Max => self.t_infomask = self.t_infomask & !HEAP_COMBOCID,
@@ -254,10 +269,10 @@ impl<T, Sized? D> Deref<T> for HeapTupleHeaderData<T, D> {
     fn deref(&self) -> &T { &self.data_ }
 }
 
-/*impl<T> DerefMut<T> for HeapTupleHeaderData<T> {
+impl<T, Sized? D> DerefMut<T> for HeapTupleHeaderData<T, D> {
     #[inline]
-    fn deref_mut(&mut self) -> &mut T { &mut self.t_data_ }
-}*/
+    fn deref_mut(&mut self) -> &mut T { &mut self.data_ }
+}
 
 #[repr(C)]
 pub struct HeapTupleHeader<T, Sized? U> {
