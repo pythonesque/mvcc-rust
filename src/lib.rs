@@ -32,6 +32,7 @@ pub mod multixact;
 pub mod heap;
 mod s_lock;
 pub mod lwlock;
+#[path = "proc.rs"] mod process;
 pub mod trans;
 
 #[deriving(Show)]
